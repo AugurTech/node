@@ -112,6 +112,8 @@ void ClientHelloParser::ParseHeader(const uint8_t* data, size_t avail) {
   hello.session_id_ = session_id_;
   hello.session_size_ = session_size_;
   hello.has_ticket_ = tls_ticket_ != nullptr && tls_ticket_size_ != 0;
+  hello.tls_ticket_size_ = tls_ticket_size_;
+  hello.tls_ticket_ = tls_ticket_;
   hello.ocsp_request_ = ocsp_request_;
   hello.servername_ = servername_;
   hello.servername_size_ = static_cast<uint8_t>(servername_size_);
@@ -167,7 +169,7 @@ void ClientHelloParser::ParseExtension(const uint16_t type,
       break;
     case kTLSSessionTicket:
       tls_ticket_size_ = len;
-      tls_ticket_ = data + len;
+      tls_ticket_ = data;
       break;
     default:
       // Ignore

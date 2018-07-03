@@ -1641,8 +1641,16 @@ void SSLWrap<Base>::OnClientHello(void* arg,
                                              hello.servername_size());
     hello_obj->Set(env->servername_string(), servername);
   }
-  hello_obj->Set(env->tls_ticket_string(),
-                 Boolean::New(env->isolate(), hello.has_ticket()));
+
+  buff = Buffer::Copy(
+      env,
+      reinterpret_cast<const char*>(hello.tls_ticket()),
+      hello.ticket_size()).ToLocalChecked();
+  hello_obj->Set(env->tls_ticket_string(), buff);
+
+  //hello_obj->Set(env->tls_ticket_string(),
+  //               Boolean::New(env->isolate(), hello.has_ticket()));
+
   hello_obj->Set(env->ocsp_request_string(),
                  Boolean::New(env->isolate(), hello.ocsp_request()));
 
