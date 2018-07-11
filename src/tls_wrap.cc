@@ -345,9 +345,7 @@ void TLSWrap::EncOut() {
 
     Local<Value> argv[] = { ticket_iv };
     MakeCallback(env()->ticketreceived_string(), arraysize(argv), argv);
-
   }
-
 
   Local<Object> req_wrap_obj =
       env()->write_wrap_constructor_function()
@@ -358,9 +356,8 @@ void TLSWrap::EncOut() {
                                         EncOutCb);
 
   uv_buf_t buf[arraysize(data)];
-  for (size_t i = 0; i < count; i++) {
+  for (size_t i = 0; i < count; i++)
     buf[i] = uv_buf_init(data[i], size[i]);
-  }
   int err = stream_->DoWrite(write_req, buf, count, nullptr);
 
   // Ignore errors, this should be already handled in js
@@ -511,8 +508,8 @@ void TLSWrap::ClearOut() {
     if (!arg.IsEmpty()) {
       // When TLS Alert are stored in wbio,
       // it should be flushed to socket before destroyed.
-      //if (BIO_pending(enc_out_) != 0)
-      //  EncOut();
+      if (BIO_pending(enc_out_) != 0)
+       EncOut();
 
       MakeCallback(env()->onerror_string(), 1, &arg);
     }
