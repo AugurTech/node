@@ -249,9 +249,6 @@ template SSL_SESSION* SSLWrap<TLSWrap>::GetSessionCallback(
     int len,
     int* copy);
 #endif
-template void SSLWrap<TLSWrap>::TicketReceived(
-    void* arg,
-    const uint8_t* ticket);
 
 template int SSLWrap<TLSWrap>::NewSessionCallback(SSL* s,
                                                   SSL_SESSION* sess);
@@ -443,7 +440,6 @@ bool EntropySource(unsigned char* buffer, size_t length) {
 
 
 void SecureContext::Initialize(Environment* env, Local<Object> target) {
-  printf("SecureContext::Initialize\n");
   Local<FunctionTemplate> t = env->NewFunctionTemplate(SecureContext::New);
   t->InstanceTemplate()->SetInternalFieldCount(1);
   Local<String> secureContextString =
@@ -501,14 +497,12 @@ void SecureContext::Initialize(Environment* env, Local<Object> target) {
 
 
 void SecureContext::New(const FunctionCallbackInfo<Value>& args) {
-  printf("SecureContext::New\n");
   Environment* env = Environment::GetCurrent(args);
   new SecureContext(env, args.This());
 }
 
 
 void SecureContext::Init(const FunctionCallbackInfo<Value>& args) {
-  printf("SecureContext::Init\n");
   SecureContext* sc;
   ASSIGN_OR_RETURN_UNWRAP(&sc, args.Holder());
   Environment* env = sc->env();
@@ -1290,7 +1284,6 @@ void SecureContext::GetTicketKeys(const FunctionCallbackInfo<Value>& args) {
 
 
 void SecureContext::SetTicketKeys(const FunctionCallbackInfo<Value>& args) {
-  printf("SetTicketKeys\n");
 #if !defined(OPENSSL_NO_TLSEXT) && defined(SSL_CTX_get_tlsext_ticket_keys)
   SecureContext* wrap;
   ASSIGN_OR_RETURN_UNWRAP(&wrap, args.Holder());
@@ -1353,8 +1346,6 @@ int SecureContext::TicketKeyCallback(SSL* ssl,
                                      HMAC_CTX* hctx,
                                      int enc) {
   static const int kTicketPartSize = 16;
-
-  printf("TicketKeyCallback\n");
 
   SecureContext* sc = static_cast<SecureContext*>(
       SSL_CTX_get_app_data(SSL_get_SSL_CTX(ssl)));
@@ -1437,7 +1428,6 @@ int SecureContext::TicketCompatibilityCallback(SSL* ssl,
                                                HMAC_CTX* hctx,
                                                int enc) {
   SecureContext* sc = static_cast<SecureContext*>(
-    printf("TicketCompatibilityCallback\n");
       SSL_CTX_get_app_data(SSL_get_SSL_CTX(ssl)));
 
   if (enc) {
@@ -1583,7 +1573,6 @@ SSL_SESSION* SSLWrap<Base>::GetSessionCallback(SSL* s,
                                                int len,
                                                int* copy) {
 #endif
-  printf("SSLWrap::GetSessionCallback\n");
   Base* w = static_cast<Base*>(SSL_get_app_data(s));
 
   *copy = 0;
@@ -1594,60 +1583,7 @@ SSL_SESSION* SSLWrap<Base>::GetSessionCallback(SSL* s,
 }
 
 template <class Base>
-void SSLWrap<Base>::TicketReceived(void* arg, const uint8_t* ticket) {
-  printf("SSLWrap<Base>::TicketReceived\n");
-
-
-    Base* w = static_cast<Base*>(arg);
-    
-    /*
-    //Environment* env = w->ssl_env();
-    HandleScope handle_scope(env()->isolate());
-    Context::Scope context_scope(env()->context());
-
-    // Local<Object> buff = Buffer::Copy(
-    //       env,
-    //       reinterpret_cast<const char*>(ticket),
-    //       8).ToLocalChecked();
-
-
-    Local<Object> obj = Object::New(env-()>isolate());
-    // Local<Object> buff = Buffer::Copy(
-    //   env,
-    //   reinterpret_cast<const char*>(ticket),
-    //   8).ToLocalChecked();
-
-    printf("SSLWrap<Base>::TicketReceived3\n");
-
-
-    // buff = Buffer::Copy(
-    //     env,
-    //     "Hello",
-    //     5).ToLocalChecked();
-
-
-    // if (hello.tls_ticket() == nullptr) {
-    //   hello_obj->Set(env->tls_ticket_string(),
-    //               Boolean::New(env->isolate(), hello.has_ticket()));
-    // } else {
-    //   buff = Buffer::Copy(
-    //       env,
-    //       reinterpret_cast<const char*>(ticket),
-    //       8).ToLocalChecked();
-    //   hello_obj->Set(env->tls_ticket_string(), buff);
-    // }
-
-
-    Local<Value> argv[] = { obj };
-    //FTODO
-    w->MakeCallback(env()->ticketreceived_string(), arraysize(argv), argv);
-    */
-}
-
-
-template <class Base>
 int SSLWrap<Base>::NewSessionCallback(SSL* s, SSL_SESSION* sess) {
-  printf("SSLWrap:NewSessionCallback\n");
   Base* w = static_cast<Base*>(SSL_get_app_data(s));
   Environment* env = w->ssl_env();
   HandleScope handle_scope(env->isolate());
@@ -1686,7 +1622,6 @@ int SSLWrap<Base>::NewSessionCallback(SSL* s, SSL_SESSION* sess) {
 template <class Base>
 void SSLWrap<Base>::OnClientHello(void* arg,
                                   const ClientHelloParser::ClientHello& hello) {
-  printf("SSlWrap::OnClientHello\n");
   Base* w = static_cast<Base*>(arg);
   Environment* env = w->ssl_env();
   HandleScope handle_scope(env->isolate());
@@ -1707,6 +1642,8 @@ void SSLWrap<Base>::OnClientHello(void* arg,
     hello_obj->Set(env->servername_string(), servername);
   }
 
+  // Overload ticket to be a false boolean if not defined and the actual
+  // ticket IV if defined
   if (hello.tls_ticket() == nullptr) {
     hello_obj->Set(env->tls_ticket_string(),
                 Boolean::New(env->isolate(), hello.has_ticket()));
@@ -2045,7 +1982,6 @@ void SSLWrap<Base>::GetPeerCertificate(
 
 template <class Base>
 void SSLWrap<Base>::GetSession(const FunctionCallbackInfo<Value>& args) {
-  printf("SSLWrap::GetSession\n");
   Environment* env = Environment::GetCurrent(args);
 
   Base* w;
@@ -2067,7 +2003,6 @@ void SSLWrap<Base>::GetSession(const FunctionCallbackInfo<Value>& args) {
 
 template <class Base>
 void SSLWrap<Base>::SetSession(const FunctionCallbackInfo<Value>& args) {
-  printf("SSLWrap::SetSession\n");
   Environment* env = Environment::GetCurrent(args);
 
   Base* w;
@@ -2100,7 +2035,6 @@ void SSLWrap<Base>::SetSession(const FunctionCallbackInfo<Value>& args) {
 
 template <class Base>
 void SSLWrap<Base>::LoadSession(const FunctionCallbackInfo<Value>& args) {
-  printf("SSLWrap::LoadSession\n");
   Base* w;
   ASSIGN_OR_RETURN_UNWRAP(&w, args.Holder());
 
@@ -2121,7 +2055,6 @@ void SSLWrap<Base>::LoadSession(const FunctionCallbackInfo<Value>& args) {
 
 template <class Base>
 void SSLWrap<Base>::IsSessionReused(const FunctionCallbackInfo<Value>& args) {
-  printf("SSLWrap:IsSessionReused\n");
   Base* w;
   ASSIGN_OR_RETURN_UNWRAP(&w, args.Holder());
   bool yes = SSL_session_reused(w->ssl_);
@@ -2981,8 +2914,6 @@ void Connection::Initialize(Environment* env, Local<Object> target) {
   t->InstanceTemplate()->SetInternalFieldCount(1);
   t->SetClassName(FIXED_ONE_BYTE_STRING(env->isolate(), "Connection"));
 
-  printf("Connection::Initialize\n");
-
   AsyncWrap::AddWrapMethods(env, t);
   env->SetProtoMethod(t, "encIn", Connection::EncIn);
   env->SetProtoMethod(t, "clearOut", Connection::ClearOut);
@@ -3097,7 +3028,6 @@ int Connection::SelectSNIContextCallback_(SSL *s, int *ad, void* arg) {
 #endif
 
 void Connection::New(const FunctionCallbackInfo<Value>& args) {
-  printf("Connection::New\n");
   Environment* env = Environment::GetCurrent(args);
 
   if (args.Length() < 1 || !args[0]->IsObject()) {
@@ -3194,7 +3124,6 @@ void Connection::SSLInfoCallback(const SSL *ssl_, int where, int ret) {
 
 
 void Connection::EncIn(const FunctionCallbackInfo<Value>& args) {
-  printf("Connection::EncIn\n");
   Connection* conn;
   ASSIGN_OR_RETURN_UNWRAP(&conn, args.Holder());
   Environment* env = conn->env();
@@ -3314,7 +3243,6 @@ void Connection::EncPending(const FunctionCallbackInfo<Value>& args) {
 
 
 void Connection::EncOut(const FunctionCallbackInfo<Value>& args) {
-  printf("Connection::EncOut\n");
   Connection* conn;
   ASSIGN_OR_RETURN_UNWRAP(&conn, args.Holder());
   Environment* env = conn->env();
@@ -3399,7 +3327,6 @@ void Connection::ClearIn(const FunctionCallbackInfo<Value>& args) {
 
 
 void Connection::Start(const FunctionCallbackInfo<Value>& args) {
-  printf("Connection::Start\n");
   Connection* conn;
   ASSIGN_OR_RETURN_UNWRAP(&conn, args.Holder());
 

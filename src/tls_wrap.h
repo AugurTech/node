@@ -111,7 +111,6 @@ class TLSWrap : public AsyncWrap,
 
   static void SSLInfoCallback(const SSL* ssl_, int where, int ret);
   void InitSSL();
-  void ProcessSessionTicket(const uint8_t* data, size_t avail);
   void EncOut();
   static void EncOutCb(WriteWrap* req_wrap, int status);
   bool ClearIn();
@@ -120,7 +119,6 @@ class TLSWrap : public AsyncWrap,
   bool InvokeQueued(int status, const char* error_str = nullptr);
 
   inline void Cycle() {
-    printf("Cycle\n");
     // Prevent recursion
     if (++cycle_depth_ > 1)
       return;

@@ -265,7 +265,6 @@ class SSLWrap {
                                          int len,
                                          int* copy);
 #endif
-  static void TicketReceived(void* arg, const uint8_t* ticket);
   static int NewSessionCallback(SSL* s, SSL_SESSION* sess);
   static void OnClientHello(void* arg,
                             const ClientHelloParser::ClientHello& hello);
@@ -432,7 +431,6 @@ class Connection : public AsyncWrap, public SSLWrap<Connection> {
         bio_read_(nullptr),
         bio_write_(nullptr),
         hello_offset_(0) {
-    printf("Connection\n");
     MakeWeak<Connection>(this);
     Wrap(wrap, this);
     hello_parser_.Start(SSLWrap<Connection>::OnClientHello,
