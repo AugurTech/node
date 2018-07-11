@@ -139,6 +139,7 @@ bool TLSWrap::InvokeQueued(int status, const char* error_str) {
 
 
 void TLSWrap::NewSessionDoneCb() {
+  printf("NewSessionDoneCb\n");
   Cycle();
 }
 
@@ -219,6 +220,7 @@ void TLSWrap::Wrap(const FunctionCallbackInfo<Value>& args) {
 
 
 void TLSWrap::Receive(const FunctionCallbackInfo<Value>& args) {
+  printf("TLSWrap::Receive\n");
   TLSWrap* wrap;
   ASSIGN_OR_RETURN_UNWRAP(&wrap, args.Holder());
 
@@ -286,9 +288,57 @@ void TLSWrap::SSLInfoCallback(const SSL* ssl_, int where, int ret) {
   }
 }
 
+void TLSWrap::ProcessSessionTicket(const uint8_t* data, size_t avail) {
+    //EscapableHandleScope scope(env()->isolate());
+    TLSWrap* wrap;
+
+    printf("TLSWrap::ProcessSessionTicket\n");
+    for (uint16_t i = 0; i < avail; i++) {
+      printf( " %X", data[i] );
+    }
+    printf("\n");
+
+
+
+    const uint8_t* ticket = data;
+
+    printf("ProcessSessionTicket2\n");
+
+    //Local<Object> obj = Object::New(env()->isolate());
+
+    Local<String> obj = OneByteString(env()->isolate(), ticket, 8);
+
+    printf("ProcessSessionTicket3\n");
+
+
+    //Base* w = static_cast<Base*>(arg);
+
+    //Environment* env = w->ssl_env();
+
+    Local<Value> argv[] = { obj };
+    MakeCallback(env()->ticketreceived_string(), arraysize(argv), argv);
+
+
+    //SSLWrap<TLSWrap>::TicketReceived(wrap, ticket);
+
+
+    // if (hello.tls_ticket() == nullptr) {
+    //   hello_obj->Set(env->tls_ticket_string(),
+    //               Boolean::New(env->isolate(), hello.has_ticket()));
+    // } else {
+    //   buff = Buffer::Copy(
+    //       env,
+    //       reinterpret_cast<const char*>(hello.tls_ticket()),
+    //       hello.ticket_size()).ToLocalChecked();
+    //   hello_obj->Set(env->tls_ticket_string(), buff);
+    // }
+
+}
+
 
 void TLSWrap::EncOut() {
   // Ignore cycling data if ClientHello wasn't yet parsed
+  //printf("TLSWRAP::EncOut\n");
   if (!hello_parser_.IsEnded())
     return;
 
@@ -323,6 +373,43 @@ void TLSWrap::EncOut() {
                                                                  &count);
   CHECK(write_size_ != 0 && count != 0);
 
+  printf("     EncOut %lu\n", write_size_);
+  Local<Object> obj = Object::New(env()->isolate());
+  printf("     EncOut2\n");
+
+  // New Session Ticket
+  // https://www.ietf.org/rfc/rfc5077.txt
+  if (write_size_ == 258) {
+    size_t header_offset = 15;
+    size_t key_name_offset = 16;
+    // IV is the only part we are actually going to take
+    size_t key_iv_size = 16;
+    // Intentionally don't commit read to avoid moving buffer
+    crypto::NodeBIO* enc_out = crypto::NodeBIO::FromBIO(enc_out_);
+
+    size_t avail = 0;
+    uint8_t* ticket_data = reinterpret_cast<uint8_t*>(enc_out->Peek(&avail));
+
+    //wrap->ProcessSessionTicket(ticket_data, avail);
+
+    const uint8_t* ticket = ticket_data;
+
+     Local<String> ticket_obj = OneByteString(env()->isolate(), "hello", 5);
+
+    // Local<Object> ticket_obj = Object::New(env()->isolate());
+    Local<Object> buff = Buffer::Copy(
+        env(),
+        reinterpret_cast<const char*>(ticket + header_offset + key_name_offset),
+        key_iv_size).ToLocalChecked();
+    // ticket_obj->Set(env()->tls_ticket_string(), buff );
+
+
+    Local<Value> argv[] = { buff };
+    MakeCallback(env()->ticketreceived_string(), arraysize(argv), argv);
+
+  }
+
+
   Local<Object> req_wrap_obj =
       env()->write_wrap_constructor_function()
           ->NewInstance(env()->context()).ToLocalChecked();
@@ -332,9 +419,17 @@ void TLSWrap::EncOut() {
                                         EncOutCb);
 
   uv_buf_t buf[arraysize(data)];
-  for (size_t i = 0; i < count; i++)
+  for (size_t i = 0; i < count; i++) {
     buf[i] = uv_buf_init(data[i], size[i]);
+  }
   int err = stream_->DoWrite(write_req, buf, count, nullptr);
+
+  // if (write_size_ == 258) {
+  //   for (uint16_t i = 0; i < write_size_; i++) {
+  //     printf( " %X", buf[i] );
+  //   }
+  //   printf("\n");
+  // }
 
   // Ignore errors, this should be already handled in js
   if (err) {
@@ -347,6 +442,7 @@ void TLSWrap::EncOut() {
 
 
 void TLSWrap::EncOutCb(WriteWrap* req_wrap, int status) {
+  printf("TLSWrap::EncOutCb\n");
   TLSWrap* wrap = req_wrap->wrap()->Cast<TLSWrap>();
   req_wrap->Dispose();
 
@@ -367,6 +463,8 @@ void TLSWrap::EncOutCb(WriteWrap* req_wrap, int status) {
 
   // Commit
   crypto::NodeBIO::FromBIO(wrap->enc_out_)->Read(nullptr, wrap->write_size_);
+
+  //printf("  wrap_size_cb %lu\n", wrap->write_size_);
 
   // Ensure that the progress will be made and `InvokeQueued` will be called.
   wrap->ClearIn();
@@ -422,6 +520,7 @@ Local<Value> TLSWrap::GetSSLError(int status, int* err, std::string* msg) {
 
 void TLSWrap::ClearOut() {
   // Ignore cycling data if ClientHello wasn't yet parsed
+  printf("ClearOut\n");
   if (!hello_parser_.IsEnded())
     return;
 
@@ -484,8 +583,8 @@ void TLSWrap::ClearOut() {
     if (!arg.IsEmpty()) {
       // When TLS Alert are stored in wbio,
       // it should be flushed to socket before destroyed.
-      if (BIO_pending(enc_out_) != 0)
-        EncOut();
+      //if (BIO_pending(enc_out_) != 0)
+      //  EncOut();
 
       MakeCallback(env()->onerror_string(), 1, &arg);
     }
@@ -495,6 +594,7 @@ void TLSWrap::ClearOut() {
 
 bool TLSWrap::ClearIn() {
   // Ignore cycling data if ClientHello wasn't yet parsed
+  printf("ClearIn\n");
   if (!hello_parser_.IsEnded())
     return false;
 
@@ -604,6 +704,7 @@ int TLSWrap::DoWrite(WriteWrap* w,
                      uv_buf_t* bufs,
                      size_t count,
                      uv_stream_t* send_handle) {
+  printf("TLSWrap::DoWrite\n");
   CHECK_EQ(send_handle, nullptr);
   CHECK_NE(ssl_, nullptr);
 
@@ -637,6 +738,8 @@ int TLSWrap::DoWrite(WriteWrap* w,
     EncOut();
     return 0;
   }
+
+  printf("     nwrite %lu\n", count);
 
   // Process enqueued data first
   if (!ClearIn()) {
@@ -737,6 +840,7 @@ void TLSWrap::OnReadSelf(ssize_t nread,
 void TLSWrap::DoRead(ssize_t nread,
                      const uv_buf_t* buf,
                      uv_handle_type pending) {
+  printf("TLSWrap::DoRead\n");
   if (nread < 0)  {
     // Error should be emitted only after all data was read
     ClearOut();
@@ -758,6 +862,8 @@ void TLSWrap::DoRead(ssize_t nread,
     return;
   }
 
+  // printf("     nread %lu\n", nread);
+
   // Commit read data
   crypto::NodeBIO* enc_in = crypto::NodeBIO::FromBIO(enc_in_);
   enc_in->Commit(nread);
@@ -767,6 +873,15 @@ void TLSWrap::DoRead(ssize_t nread,
     size_t avail = 0;
     uint8_t* data = reinterpret_cast<uint8_t*>(enc_in->Peek(&avail));
     CHECK(avail == 0 || data != nullptr);
+
+
+    // printf("  Length: %lu\n", avail);
+    // for (uint8_t i = 0; i < 100; i++) {
+    //   printf( " %X", data[i] );
+    // }
+    // printf("\n");
+
+
     return hello_parser_.Parse(data, avail);
   }
 
@@ -823,6 +938,7 @@ void TLSWrap::SetVerifyMode(const FunctionCallbackInfo<Value>& args) {
 
 void TLSWrap::EnableSessionCallbacks(
     const FunctionCallbackInfo<Value>& args) {
+  //printf("TLSWrap::EnableSessionCallbacks\n");
   TLSWrap* wrap;
   ASSIGN_OR_RETURN_UNWRAP(&wrap, args.Holder());
   if (wrap->ssl_ == nullptr) {
@@ -864,6 +980,7 @@ void TLSWrap::EnableCertCb(const FunctionCallbackInfo<Value>& args) {
 
 void TLSWrap::OnClientHelloParseEnd(void* arg) {
   TLSWrap* c = static_cast<TLSWrap*>(arg);
+  printf("OnClientHelloParseEnd\n");
   c->Cycle();
 }
 

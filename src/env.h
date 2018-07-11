@@ -214,6 +214,7 @@ class ModuleWrap;
   V(onmessage_string, "onmessage")                                            \
   V(onnewsession_string, "onnewsession")                                      \
   V(onnewsessiondone_string, "onnewsessiondone")                              \
+  V(ticketreceived_string, "ticketreceived")                                  \
   V(onocspresponse_string, "onocspresponse")                                  \
   V(ongoawaydata_string, "ongoawaydata")                                      \
   V(onpriority_string, "onpriority")                                          \
