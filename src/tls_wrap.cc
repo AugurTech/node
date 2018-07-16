@@ -324,23 +324,20 @@ void TLSWrap::EncOut() {
 
   // New Session Ticket
   // https://www.ietf.org/rfc/rfc5077.txt
-  // TODO base this on the actual packet, not length
-  if (write_size_ == 258) {
+  size_t avail = 0;
+  // Intentionally don't commit read to avoid moving buffer
+  crypto::NodeBIO* enc_out = crypto::NodeBIO::FromBIO(enc_out_);
+  uint8_t* ticket_data = reinterpret_cast<uint8_t*>(enc_out->Peek(&avail));
+  // Look for 0x16 (Handshake) and 0x04 (New Session Ticket)
+  if (avail > 5 && ticket_data[0] == 0x16 && ticket_data[5] == 0x04 ) {
     size_t header_offset = 15;
     size_t key_name_offset = 16;
     // IV is the only part we are actually going to take
     size_t key_iv_size = 16;
-    // Intentionally don't commit read to avoid moving buffer
-    crypto::NodeBIO* enc_out = crypto::NodeBIO::FromBIO(enc_out_);
-
-    size_t avail = 0;
-    uint8_t* ticket_data = reinterpret_cast<uint8_t*>(enc_out->Peek(&avail));
-
-    const uint8_t* ticket = ticket_data;
 
     Local<Object> ticket_iv = Buffer::Copy(
         env(),
-        reinterpret_cast<const char*>(ticket + header_offset + key_name_offset),
+        reinterpret_cast<const char*>(ticket_data + header_offset + key_name_offset),
         key_iv_size).ToLocalChecked();
 
     Local<Value> argv[] = { ticket_iv };
