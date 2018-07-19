@@ -1644,7 +1644,7 @@ void SSLWrap<Base>::OnClientHello(void* arg,
 
   // Overload ticket to be a false boolean if not defined and the actual
   // ticket IV if defined
-  if (hello.tls_ticket() == nullptr) {
+  if (hello.tls_ticket() == nullptr || hello.ticket_size() == 0) {
     hello_obj->Set(env->tls_ticket_string(),
                 Boolean::New(env->isolate(), hello.has_ticket()));
   } else {
