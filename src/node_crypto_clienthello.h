@@ -54,6 +54,8 @@ class ClientHelloParser {
     inline uint8_t servername_size() const { return servername_size_; }
     inline const uint8_t* servername() const { return servername_; }
     inline int ocsp_request() const { return ocsp_request_; }
+    inline uint8_t ticket_size() const { return tls_ticket_size_; }
+    inline const uint8_t* tls_ticket() const { return tls_ticket_; }
 
    private:
     uint8_t session_size_;
@@ -62,6 +64,8 @@ class ClientHelloParser {
     uint8_t servername_size_;
     const uint8_t* servername_;
     int ocsp_request_;
+    uint8_t tls_ticket_size_;
+    const uint8_t* tls_ticket_;
 
     friend class ClientHelloParser;
   };

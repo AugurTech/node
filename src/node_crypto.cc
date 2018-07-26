@@ -249,6 +249,7 @@ template SSL_SESSION* SSLWrap<TLSWrap>::GetSessionCallback(
     int len,
     int* copy);
 #endif
+
 template int SSLWrap<TLSWrap>::NewSessionCallback(SSL* s,
                                                   SSL_SESSION* sess);
 template void SSLWrap<TLSWrap>::OnClientHello(
@@ -1581,7 +1582,6 @@ SSL_SESSION* SSLWrap<Base>::GetSessionCallback(SSL* s,
   return sess;
 }
 
-
 template <class Base>
 int SSLWrap<Base>::NewSessionCallback(SSL* s, SSL_SESSION* sess) {
   Base* w = static_cast<Base*>(SSL_get_app_data(s));
@@ -1641,8 +1641,23 @@ void SSLWrap<Base>::OnClientHello(void* arg,
                                              hello.servername_size());
     hello_obj->Set(env->servername_string(), servername);
   }
-  hello_obj->Set(env->tls_ticket_string(),
-                 Boolean::New(env->isolate(), hello.has_ticket()));
+
+  // Overload ticket to be a false boolean if not defined and the actual
+  // ticket IV if defined
+  if (hello.tls_ticket() == nullptr || hello.ticket_size() == 0) {
+    hello_obj->Set(env->tls_ticket_string(),
+                Boolean::New(env->isolate(), hello.has_ticket()));
+  } else {
+    size_t key_name_offset = 16;
+    // IV is the only part we are actually going to take
+    size_t key_iv_size = 16;
+    buff = Buffer::Copy(
+        env,
+        reinterpret_cast<const char*>(hello.tls_ticket() + key_name_offset),
+        key_iv_size).ToLocalChecked();
+    hello_obj->Set(env->tls_ticket_string(), buff);
+  }
+
   hello_obj->Set(env->ocsp_request_string(),
                  Boolean::New(env->isolate(), hello.ocsp_request()));
 

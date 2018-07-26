@@ -286,7 +286,6 @@ void TLSWrap::SSLInfoCallback(const SSL* ssl_, int where, int ret) {
   }
 }
 
-
 void TLSWrap::EncOut() {
   // Ignore cycling data if ClientHello wasn't yet parsed
   if (!hello_parser_.IsEnded())
@@ -322,6 +321,28 @@ void TLSWrap::EncOut() {
                                                                  size,
                                                                  &count);
   CHECK(write_size_ != 0 && count != 0);
+
+  // New Session Ticket
+  // https://www.ietf.org/rfc/rfc5077.txt
+  size_t avail = 0;
+  // Intentionally don't commit read to avoid moving buffer
+  crypto::NodeBIO* enc_out = crypto::NodeBIO::FromBIO(enc_out_);
+  uint8_t* ticket_data = reinterpret_cast<uint8_t*>(enc_out->Peek(&avail));
+  // Look for 0x16 (Handshake) and 0x04 (New Session Ticket)
+  if (avail > 5 && ticket_data[0] == 0x16 && ticket_data[5] == 0x04 ) {
+    size_t header_offset = 15;
+    size_t key_name_offset = 16;
+    // IV is the only part we are actually going to take
+    size_t key_iv_size = 16;
+
+    Local<Object> ticket_iv = Buffer::Copy(
+        env(),
+        reinterpret_cast<const char*>(ticket_data + header_offset + key_name_offset),
+        key_iv_size).ToLocalChecked();
+
+    Local<Value> argv[] = { ticket_iv };
+    MakeCallback(env()->ticketreceived_string(), arraysize(argv), argv);
+  }
 
   Local<Object> req_wrap_obj =
       env()->write_wrap_constructor_function()
@@ -485,7 +506,7 @@ void TLSWrap::ClearOut() {
       // When TLS Alert are stored in wbio,
       // it should be flushed to socket before destroyed.
       if (BIO_pending(enc_out_) != 0)
-        EncOut();
+       EncOut();
 
       MakeCallback(env()->onerror_string(), 1, &arg);
     }
@@ -767,6 +788,7 @@ void TLSWrap::DoRead(ssize_t nread,
     size_t avail = 0;
     uint8_t* data = reinterpret_cast<uint8_t*>(enc_in->Peek(&avail));
     CHECK(avail == 0 || data != nullptr);
+
     return hello_parser_.Parse(data, avail);
   }
 
